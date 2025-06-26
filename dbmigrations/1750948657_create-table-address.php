@@ -7,7 +7,7 @@ use SplitPHP\Database\DbVocab;
 
 class CreateTableAddress extends Migration{
   public function apply(){
-    $this->Table('ADR_ADDRESS')
+    $this->Table('ADR_ADDRESS', 'Address')
       ->id('id_adr_address')
       ->string('ds_key', 17)
       ->datetime('dt_created')->setDefaultValue(DbVocab::SQL_CURTIMESTAMP())
@@ -24,6 +24,6 @@ class CreateTableAddress extends Migration{
       ->string('do_state', 2)
       ->string('ds_lat', 11)->nullable()->setDefaultValue(null)
       ->string('ds_lng', 12)->nullable()->setDefaultValue(null)
-      ->Index(DbVocab::IDX_UNIQUE)->onColumn('ds_key');
+      ->Index('KEY', DbVocab::IDX_UNIQUE)->onColumn('ds_key');
   }
 }
