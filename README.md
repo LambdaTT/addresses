@@ -1,4 +1,4 @@
-# lambdatt-php/bpm
+# lambdatt-php/addresses
 
 A SplitPHP Framework plugin containing an address management system.
 
