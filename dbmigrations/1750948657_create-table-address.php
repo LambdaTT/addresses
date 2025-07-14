@@ -2,7 +2,7 @@
 
 namespace Addresses\Migrations;
 
-use SplitPHP\DbMigrations\Migration;
+use SplitPHP\DbManager\Migration;
 use SplitPHP\Database\DbVocab;
 
 class CreateTableAddress extends Migration{
