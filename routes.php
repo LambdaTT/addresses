@@ -7,7 +7,7 @@ use SplitPHP\WebService;
 
 class Addresses extends WebService
 {
-  public function init()
+  public function init(): void
   {
     $this->addEndpoint('GET', '/v1/address/?key?', function ($params) {
       $this->auth([
