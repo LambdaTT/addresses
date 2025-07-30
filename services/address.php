@@ -4,6 +4,7 @@ namespace Addresses\Services;
 
 use SplitPHP\Service;
 use Exception;
+use SplitPHP\Exceptions\BadRequest;
 use SplitPHP\Helpers;
 
 class Address extends Service
@@ -39,14 +40,17 @@ class Address extends Service
 
     // Data Validation:
     if (!$this->areAllFieldsPresent($data)) {
-      throw new Exception('Os dados do endereço estão incompletos.', BAD_REQUEST);
+      throw new BadRequest('Os dados do endereço estão incompletos.');
     }
 
     // Gather additional data:
+    $appName = APPLICATION_NAME;
+    $urlApp = URL_APPLICATION;
     $r = Helpers::cURL()
-      ->setDataAsJson([
+      ->setHeader("User-Agent: {$appName}/1.0 ({$urlApp})")
+      ->setData([
         'format' => 'json',
-        'q' => $this->buildFullAddress($data),
+        'q' => $this->buildFullAddress($data, ['ds_zipcode']),
       ])
       ->get('https://nominatim.openstreetmap.org/search');
 
@@ -84,14 +88,18 @@ class Address extends Service
     $rows = 0;
 
     foreach ($this->list($params) as $address) {
+      $address = (array) $address;
       foreach ($data as $key => $value)
-        $address->$key = $value;
+        $address[$key] = $value;
 
       // Gather additional data:
+      $appName = APPLICATION_NAME;
+      $urlApp = URL_APPLICATION;
       $r = Helpers::cURL()
-        ->setDataAsJson([
+        ->setHeader("User-Agent: {$appName}/1.0 ({$urlApp})")
+        ->setData([
           'format' => 'json',
-          'q' => $this->buildFullAddress($address),
+          'q' => $this->buildFullAddress($address, ['ds_zipcode']),
         ])
         ->get('https://nominatim.openstreetmap.org/search');
 
@@ -122,25 +130,26 @@ class Address extends Service
       ->delete();
   }
 
-  public function buildFullAddress($data)
+  public function buildFullAddress($data, $ignore = [])
   {
     $data = (array) $data;
-    if (!$this->areAllFieldsPresent($data)) {
-      throw new Exception('Os dados do endereço estão incompletos.', BAD_REQUEST);
+    if (!$this->areAllFieldsPresent($data, $ignore)) {
+      throw new BadRequest('Os dados do endereço estão incompletos.');
     }
+    
     // Build the full address string
     return implode(', ', array_filter([
-      $data['ds_zipcode'],
-      $data['ds_street'],
-      $data['ds_number'],
-      $data['ds_complement'] ?? null,
-      $data['ds_neighborhood'],
-      $data['do_state'],
-      $data['ds_city'],
+      !in_array('ds_zipcode', $ignore) ? $data['ds_zipcode'] : null,
+      !in_array('ds_street', $ignore) ? $data['ds_street'] : null,
+      !in_array('ds_number', $ignore) ? $data['ds_number'] : null,
+      !in_array('ds_complement', $ignore) ? $data['ds_complement'] : null,
+      !in_array('ds_neighborhood', $ignore) ? $data['ds_neighborhood'] : null,
+      !in_array('do_state', $ignore) ? $data['do_state'] : null,
+      !in_array('ds_city', $ignore) ? $data['ds_city'] : null,
     ]));
   }
 
-  private function areAllFieldsPresent($data)
+  private function areAllFieldsPresent($data, $ignore = [])
   {
     $required = [
       'ds_zipcode',
@@ -150,6 +159,12 @@ class Address extends Service
       'ds_city',
       'do_state',
     ];
+
+    foreach ($ignore as $field) {
+      if (isset($required[$field])) {
+        unset($required[$field]);
+      }
+    }
 
     return empty(array_diff($required, array_keys($data)));
   }

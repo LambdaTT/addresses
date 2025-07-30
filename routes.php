@@ -2,21 +2,25 @@
 
 namespace Addresses\Routes;
 
-use Exception;
 use SplitPHP\WebService;
+use SplitPHP\Exceptions\Unauthorized;
+use SplitPHP\Request;
 
 class Addresses extends WebService
 {
   public function init(): void
   {
-    $this->addEndpoint('GET', '/v1/address/?key?', function ($params) {
+    $this->addEndpoint('GET', '/v1/address/?key?', function (Request $request) {
       $this->auth([
         'ADR_ADDRESS' => 'R'
       ]);
 
       // Get the address:
-      $address = $this->getService('addresses/address')
-        ->get(['ds_key' => $params['key']]);
+      $params = [
+        'ds_key' => $request->getRoute()->params['key'],
+      ];
+
+      $address = $this->getService('addresses/address')->get($params);
 
       if (!$address)
         return $this->response
@@ -27,7 +31,7 @@ class Addresses extends WebService
         ->withData($address);
     });
 
-    $this->addEndpoint('GET', '/v1/address/', function ($params) {
+    $this->addEndpoint('GET', '/v1/address', function ($params) {
       $this->auth([
         'ADR_ADDRESS' => 'R'
       ]);
@@ -41,12 +45,13 @@ class Addresses extends WebService
         ->withData($addresses);
     });
 
-    $this->addEndpoint('POST', '/v1/address/', function ($data) {
+    $this->addEndpoint('POST', '/v1/address', function (Request $request) {
       $this->auth([
         'ADR_ADDRESS' => 'C'
       ]);
 
       // Create the address:
+      $data = $request->getBody();
       $address = $this->getService('addresses/address')
         ->create($data);
 
@@ -55,19 +60,19 @@ class Addresses extends WebService
         ->withData($address);
     });
 
-    $this->addEndpoint('PUT', '/v1/address/?key?', function ($input) {
+    $this->addEndpoint('PUT', '/v1/address/?key?', function (Request $request) {
       $this->auth([
         'ADR_ADDRESS' => 'U'
       ]);
 
       $params = [
-        'ds_key' => $input['key'] ?? null,
+        'ds_key' => $request->getRoute()->params['key'],
       ];
-      unset($input['key']);
+      $data = $request->getBody();
 
       // Update the address:
       $rows = $this->getService('addresses/address')
-        ->update($params, $input);
+        ->upd($params, $data);
 
       if (!$rows) return $this->response
         ->withStatus(404);
@@ -76,14 +81,18 @@ class Addresses extends WebService
         ->withStatus(204);
     });
 
-    $this->addEndpoint('DELETE', '/v1/address/?key?', function ($params) {
+    $this->addEndpoint('DELETE', '/v1/address/?key?', function (Request $request) {
       $this->auth([
         'ADR_ADDRESS' => 'D'
       ]);
 
+      $params = [
+        'ds_key' => $request->getRoute()->params['key'],
+      ];
+
       // Remove the address:
       $rows = $this->getService('addresses/address')
-        ->remove(['ds_key' => $params['key']]);
+        ->remove($params);
 
       if (!$rows) return $this->response
         ->withStatus(404);
@@ -99,7 +108,7 @@ class Addresses extends WebService
 
     // Auth user login:
     if (!$this->getService('iam/session')->authenticate())
-      throw new Exception("Não autorizado.", NOT_AUTHORIZED);
+      throw new Unauthorized("Não autorizado.");
 
     // Validate user permissions:
     $this->getService('iam/permission')
