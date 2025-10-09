@@ -6,6 +6,8 @@ use SplitPHP\Service;
 use Exception;
 use SplitPHP\Exceptions\BadRequest;
 use SplitPHP\Helpers;
+use SplitPHP\Database\Database;
+use SplitPHP\Database\Dbmetadata;
 
 class Address extends Service
 {
@@ -23,10 +25,10 @@ class Address extends Service
       ->first();
   }
 
-  public function create($data)
+  public function create(&$data)
   {
     // Data Blacklisting:
-    $data = $this->getService('utils/misc')
+    $adrdata = $this->getService('utils/misc')
       ->dataBlacklist($data, [
         'id_adr_address',
         'ds_key',
@@ -38,10 +40,12 @@ class Address extends Service
         'ds_lng',
       ]);
 
+    $this->filterData($adrdata);
+    $this->removeData($data);
+
     // Data Validation:
-    if (!$this->areAllFieldsPresent($data)) {
+    if (!$this->areAllFieldsPresent($adrdata))
       throw new BadRequest('Os dados do endereço estão incompletos.');
-    }
 
     // Gather additional data:
     $appName = APPLICATION_NAME;
@@ -50,30 +54,29 @@ class Address extends Service
       ->setHeader("User-Agent: {$appName}/1.0 ({$urlApp})")
       ->setData([
         'format' => 'json',
-        'q' => $this->buildFullAddress($data, ['ds_zipcode']),
+        'q' => $this->buildFullAddress($adrdata, ['ds_zipcode']),
       ])
       ->get('https://nominatim.openstreetmap.org/search');
 
-    if ($r->status != 200) {
+    if ($r->status != 200)
       throw new Exception('There was an error on the attempt to retrieve geolocation data.');
-    }
 
     $geo = $r->data[0];
 
     // Automatically data filling:
-    $data['ds_key'] = 'adr-' . uniqid();
-    $data['id_iam_user_created'] = $this->getLoggedUserId();
-    $data['ds_lat'] = $geo->lat ?? null;
-    $data['ds_lng'] = $geo->lon ?? null;
+    $adrdata['ds_key'] = 'adr-' . uniqid();
+    $adrdata['id_iam_user_created'] = $this->getLoggedUserId();
+    $adrdata['ds_lat'] = $geo->lat ?? null;
+    $adrdata['ds_lng'] = $geo->lon ?? null;
 
     return $this->getDao('ADR_ADDRESS')
-      ->insert($data);
+      ->insert($adrdata);
   }
 
-  public function upd($params, $data)
+  public function upd($params, &$data)
   {
     // Data Blacklisting:
-    $data = $this->getService('utils/misc')
+    $adrdata = $this->getService('utils/misc')
       ->dataBlacklist($data, [
         'id_adr_address',
         'ds_key',
@@ -84,6 +87,9 @@ class Address extends Service
         'ds_lat',
         'ds_lng',
       ]);
+
+    $this->filterData($adrdata);
+    $this->removeData($data);
 
     $rows = 0;
 
@@ -110,14 +116,14 @@ class Address extends Service
       $geo = $r->data[0];
 
       // Automatically data filling:
-      $data['id_iam_user_updated'] = $this->getLoggedUserId();
-      $data['dt_updated'] = date('Y-m-d H:i:s');
-      $data['ds_lat'] = $geo->lat ?? null;
-      $data['ds_lng'] = $geo->lon ?? null;
+      $adrdata['id_iam_user_updated'] = $this->getLoggedUserId();
+      $adrdata['dt_updated'] = date('Y-m-d H:i:s');
+      $adrdata['ds_lat'] = $geo->lat ?? null;
+      $adrdata['ds_lng'] = $geo->lon ?? null;
 
       $rows += $this->getDao('ADR_ADDRESS')
         ->filter('id_adr_address')->equalsTo($address['id_adr_address'])
-        ->update($data);
+        ->update($adrdata);
     }
 
     return $rows;
@@ -136,7 +142,7 @@ class Address extends Service
     if (!$this->areAllFieldsPresent($data, $ignore)) {
       throw new BadRequest('Os dados do endereço estão incompletos.');
     }
-    
+
     // Build the full address string
     return implode(', ', array_filter([
       !in_array('ds_zipcode', $ignore) ? $data['ds_zipcode'] : null,
@@ -147,6 +153,40 @@ class Address extends Service
       !in_array('do_state', $ignore) ? $data['do_state'] : null,
       !in_array('ds_city', $ignore) ? $data['ds_city'] : null,
     ]));
+  }
+
+  /**
+   *  Remove fields in $data that are not user-related
+   *  @param  array $data The array to be filtered
+   *  @return array  An array containing only user-related fields
+   */
+  public function filterData(&$data)
+  {
+    require_once CORE_PATH . '/database/' . Database::getRdbmsName() . '/class.dbmetadata.php';
+    $tbInfo = Dbmetadata::tbInfo('IAM_USER');
+
+    $data = $this->getService('utils/misc')->dataWhiteList($data, array_map(function ($c) {
+      return $c['Field'];
+    }, $tbInfo['columns']));
+
+    return $data;
+  }
+
+  /**
+   * Clean the content of $data, removing any user-related information.
+   * @param   array $data The array to be cleaned
+   * @return  array Returns the cleaned $data array
+   */
+  public function removeData(&$data)
+  {
+    require_once CORE_PATH . '/database/' . Database::getRdbmsName() . '/class.dbmetadata.php';
+    $tbInfo = Dbmetadata::tbInfo('IAM_USER');
+
+    $data = $this->getService('utils/misc')->dataBlackList($data, array_map(function ($c) {
+      return $c['Field'];
+    }, $tbInfo['columns']));
+
+    return $data;
   }
 
   private function areAllFieldsPresent($data, $ignore = [])
