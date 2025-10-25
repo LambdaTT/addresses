@@ -68,6 +68,7 @@ class Address extends Service
     $adrdata['id_iam_user_created'] = $this->getLoggedUserId();
     $adrdata['ds_lat'] = $geo->lat ?? null;
     $adrdata['ds_lng'] = $geo->lon ?? null;
+    $adrdata['tx_fulladdress'] = $this->buildFullAddress($adrdata);
 
     return $this->getDao('ADR_ADDRESS')
       ->insert($adrdata);
@@ -120,6 +121,7 @@ class Address extends Service
       $adrdata['dt_updated'] = date('Y-m-d H:i:s');
       $adrdata['ds_lat'] = $geo->lat ?? null;
       $adrdata['ds_lng'] = $geo->lon ?? null;
+      $adrdata['tx_fulladdress'] = $this->buildFullAddress($address);
 
       $rows += $this->getDao('ADR_ADDRESS')
         ->filter('id_adr_address')->equalsTo($address['id_adr_address'])
