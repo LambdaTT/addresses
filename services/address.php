@@ -8,6 +8,7 @@ use SplitPHP\Exceptions\BadRequest;
 use SplitPHP\Helpers;
 use SplitPHP\Database\Database;
 use SplitPHP\Database\Dbmetadata;
+use SplitPHP\Exceptions\FailedValidation;
 
 class Address extends Service
 {
@@ -46,6 +47,9 @@ class Address extends Service
     // Data Validation:
     if (!$this->areAllFieldsPresent($adrdata))
       throw new BadRequest('Os dados do endereço estão incompletos.');
+
+    if (!$this->getService('utils/misc')->validateUF($adrdata['do_state']))
+      throw new FailedValidation('O UF informado é inválido.');
 
     // Gather additional data:
     $appName = APPLICATION_NAME;
@@ -92,11 +96,14 @@ class Address extends Service
     $this->filterData($adrdata);
     $this->removeData($data);
 
+    if (isset($adrdata['do_state']) && !$this->getService('utils/misc')->validateUF($adrdata['do_state']))
+      throw new FailedValidation('O UF informado é inválido.');
+
     $rows = 0;
 
     foreach ($this->list($params) as $address) {
       $address = (array) $address;
-      foreach ($data as $key => $value)
+      foreach ($adrdata as $key => $value)
         $address[$key] = $value;
 
       // Gather additional data:
@@ -165,11 +172,13 @@ class Address extends Service
   public function filterData(&$data)
   {
     require_once CORE_PATH . '/database/' . Database::getRdbmsName() . '/class.dbmetadata.php';
-    $tbInfo = Dbmetadata::tbInfo('IAM_USER');
+    $tbInfo = Dbmetadata::tbInfo('ADR_ADDRESS');
 
-    $data = $this->getService('utils/misc')->dataWhiteList($data, array_map(function ($c) {
+    $entityFields = array_map(function ($c) {
       return $c['Field'];
-    }, $tbInfo['columns']));
+    }, $tbInfo['columns']);
+
+    $data = $this->getService('utils/misc')->dataWhiteList($data, $entityFields);
 
     return $data;
   }
@@ -182,11 +191,13 @@ class Address extends Service
   public function removeData(&$data)
   {
     require_once CORE_PATH . '/database/' . Database::getRdbmsName() . '/class.dbmetadata.php';
-    $tbInfo = Dbmetadata::tbInfo('IAM_USER');
+    $tbInfo = Dbmetadata::tbInfo('ADR_ADDRESS');
 
-    $data = $this->getService('utils/misc')->dataBlackList($data, array_map(function ($c) {
+    $entityFields = array_map(function ($c) {
       return $c['Field'];
-    }, $tbInfo['columns']));
+    }, $tbInfo['columns']);
+
+    $data = $this->getService('utils/misc')->dataBlackList($data, $entityFields);
 
     return $data;
   }
