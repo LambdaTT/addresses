@@ -5,15 +5,19 @@ namespace Addresses\Routes;
 use SplitPHP\WebService;
 use SplitPHP\Exceptions\Unauthorized;
 use SplitPHP\Request;
+use SplitPHP\ModsManager;
 
 class Addresses extends WebService
 {
+  private const ADDRESS_PERMISSIONS = [
+    'read'    => 'addresses.address.read',
+    'manage'  => 'addresses.address.manage'
+  ];
+
   public function init(): void
   {
     $this->addEndpoint('GET', '/v1/address/?key?', function (Request $request) {
-      $this->auth([
-        'ADR_ADDRESS' => 'R'
-      ]);
+      $this->auth(self::ADDRESS_PERMISSIONS);
 
       // Get the address:
       $params = [
@@ -32,9 +36,7 @@ class Addresses extends WebService
     });
 
     $this->addEndpoint('GET', '/v1/address', function ($params) {
-      $this->auth([
-        'ADR_ADDRESS' => 'R'
-      ]);
+      $this->auth(self::ADDRESS_PERMISSIONS);
 
       // List the addresses:
       $addresses = $this->getService('addresses/address')
@@ -46,9 +48,7 @@ class Addresses extends WebService
     });
 
     $this->addEndpoint('POST', '/v1/address', function (Request $request) {
-      $this->auth([
-        'ADR_ADDRESS' => 'C'
-      ]);
+      $this->auth(self::ADDRESS_PERMISSIONS['manage']);
 
       // Create the address:
       $data = $request->getBody();
@@ -61,9 +61,7 @@ class Addresses extends WebService
     });
 
     $this->addEndpoint('PUT', '/v1/address/?key?', function (Request $request) {
-      $this->auth([
-        'ADR_ADDRESS' => 'U'
-      ]);
+      $this->auth(self::ADDRESS_PERMISSIONS['manage']);
 
       $params = [
         'ds_key' => $request->getRoute()->params['key'],
@@ -82,9 +80,7 @@ class Addresses extends WebService
     });
 
     $this->addEndpoint('DELETE', '/v1/address/?key?', function (Request $request) {
-      $this->auth([
-        'ADR_ADDRESS' => 'D'
-      ]);
+      $this->auth(self::ADDRESS_PERMISSIONS['manage']);
 
       $params = [
         'ds_key' => $request->getRoute()->params['key'],
@@ -102,18 +98,15 @@ class Addresses extends WebService
     });
   }
 
-  private function auth(array $permissions)
+  private function auth(array|string $permissions)
   {
-    if (!$this->getService('modcontrol/control')->moduleExists('iam')) return;
+    if (!ModsManager::modExists('iam')) return;
 
     // Auth user login:
     if (!$this->getService('iam/session')->authenticate())
       throw new Unauthorized("Não autorizado.");
 
     // Validate user permissions:
-    // TODO(iam-refactor): entity/CRUD validatePermissions() was removed in the IAM
-    // permissions simplification. Re-enable via tag-based requireAny() once tags exist.
-    // $this->getService('iam/permission')
-    //   ->validatePermissions($permissions);
+    $this->getService('iam/permission')->requireAny($permissions);
   }
 }
